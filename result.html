@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOPE Airdrop Result</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- ⚠️ 这里的引入非常关键！这是为了让手机钱包能扫码连接 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://unpkg.com/@walletconnect/ethereum-provider@2.10.6/dist/umd/index.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">
+                <img src="bear.png" alt="HOPE Bear" class="logo-image" />
+            </div>
+
+            <h1>Airdrop Results</h1>
+            <p class="subtitle" id="displayAddress">Address: Not Connected</p>
+
+            <div class="info-banner">
+                <p class="info-text">🚀 Token Launch on BSC Mainnet</p>
+                <p class="info-text">📊 Total Supply: 1,000,000,000 HOPE</p>
+            </div>
+
+            <div class="result-box">
+                <p class="label">Eligible Amount</p>
+                <!-- 这里的金额会自动通过 URL 参数获取并显示 -->
+                <p class="amount" id="airdropAmount">0.00 HOPE</p>
+            </div>
+
+            <button id="claimBtn" class="btn btn-success">Connect Wallet & Claim</button>
+            <p id="claimStatus" class="status"></p>
+
+            <div class="back-link">
+                <a href="index.html">← Back to Check</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载你的交互逻辑 -->
+    <script src="result.js"></script>
+</body>
+</html>
