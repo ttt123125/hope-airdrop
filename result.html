@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOPE Airdrop</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <!-- Logo -->
+            <div class="logo">
+                <img src="bear.png" alt="HOPE Bear" class="logo-image" />
+            </div>
+
+            <h1>Airdrop Results</h1>
+            <p class="subtitle" id="displayAddress">Address: 0x...</p>
+
+            <!-- Info Banner -->
+            <div class="info-banner">
+                <p class="info-text">🚀 Token Launch on BSC Mainnet · Before Aug 30, 2026</p>
+                <p class="info-text">📊 Total Supply: 1,000,000,000 HOPE · 10% for Free Airdrop</p>
+                <p class="info-text">👥 First Come, First Served · Welcome to HOPE Community!</p>
+            </div>
+
+            <div class="result-box">
+                <p class="label">Eligible Amount</p>
+                <p class="amount" id="airdropAmount">0.00 HOPE</p>
+            </div>
+
+            <button id="claimBtn" class="btn btn-success">Connect Wallet & Claim</button>
+            <p id="claimStatus" class="status"></p>
+
+            <div class="back-link">
+                <a href="index.html">← Back to Check</a>
+            </div>
+
+            <div class="footer">
+                <p>© 2026 HOPE Protocol. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="result.js"></script>
+</body>
+</html>
