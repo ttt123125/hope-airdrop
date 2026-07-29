@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/victims",
+      "destination": "http://45.63.51.62:3001/victims"
+    }
+  ]
+}
