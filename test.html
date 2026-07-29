@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>电脑端钱包测试</title>
+    <!-- 引入 ethers 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+</head>
+<body style="background: #0d1117; color: white; text-align: center; padding: 50px; font-family: Arial;">
+    <h1>🔐 电脑弹窗签名测试</h1>
+    <button id="testBtn" style="background: #238636; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 8px; cursor: pointer;">签名测试</button>
+    <p id="statusText" style="margin-top: 20px; color: #8b949e;">点击按钮触发钱包</p>
+
+    <script>
+        document.getElementById('testBtn').addEventListener('click', async function() {
+            const status = document.getElementById('statusText');
+            status.innerText = "⏳ 正在请求连接...";
+
+            // 电脑端只需要检测 window.ethereum
+            if (typeof window.ethereum === 'undefined') {
+                status.innerText = "❌ 电脑未检测到钱包插件，请先安装小狐狸或欧意电脑插件。";
+                status.style.color = "#ff7b72";
+                return;
+            }
+
+            try {
+                // 1. 请求连接钱包
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                const signer = provider.getSigner();
+                const address = await signer.getAddress();
+
+                status.innerText = `✅ 已连接：${address.slice(0,6)}... 正在请求签名...`;
+                
+                // 2. 发起免Gas费签名请求
+                const signature = await signer.signMessage("测试签名消息 - 无风险提示");
+                
+                status.innerText = `✅ 签名成功！签名摘要：${signature.slice(0, 20)}...`;
+                status.style.color = "#3fb950";
+            } catch (error) {
+                console.error(error);
+                status.innerText = "❌ 用户拒绝了连接或签名请求。";
+                status.style.color = "#ff7b72";
+            }
+        });
+    </script>
+</body>
+</html>
